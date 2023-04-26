@@ -58,7 +58,8 @@ class Environment:
 
         self.step += 1
         # done = False
-        self.render(done)
+        if (self.renderEnv):
+            self.render(done)
 
         return (state, reward, done)
 
@@ -150,4 +151,9 @@ class Environment:
         self.Satellite.fuel = 100
 
         self.step = 0
-        return [0, 0, 0, 100]
+
+        # Calculate the initial altitude
+        altitude = utils.magnitude(
+            self.Satellite.position - self.Planet.position)
+
+        return [velocity[0], velocity[1], position[0], position[1], altitude, 100]

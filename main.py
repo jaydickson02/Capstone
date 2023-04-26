@@ -21,24 +21,8 @@ Height = 1000  # Careful these are hardcoded in the environment for the reward f
 planet = Planet([Width/2, Height/2], 20, 1, [0, 0, 0])
 satellite = Satellite([Width/2, (Height/2) + 100], [0, 0], 3, [0, 0, 0])
 
-# satellite.findOrbit(planet, G)
-
 # Create environment
-env = Environment(planet, satellite, G, True)
-
-# Reset the environment
-# env.reset()
-
-# done = False
-# # Run the environment
-# for i in range(650):
-
-#     state, reward, done = env.next(0)
-#     print("State: ", state)
-#     print("Reward: ", reward)
-#     print("Done: ", done)
-#     input("Press Enter to continue...")
-#     # print(reward)
+env = Environment(planet, satellite, G, False)
 
 
 class DQN:
@@ -98,14 +82,14 @@ def train_dqn(agent, episodes, batch_size):
         i = 0
         while not done:
             action = agent.act(state)
-            next_state, reward, done, _, _ = env.next(action)
-            next_state = np.reshape(next_state, [1, 4])
+            next_state, reward, done = env.next(action)
+            next_state = np.reshape(next_state, [1, 6])
             agent.remember(state, action, reward, next_state, done)
             state = next_state
             i += 1
         scores.append(i)
         mean_score = np.mean(scores)
-        if mean_score >= 800:
+        if mean_score >= 1000:
             print(f"Environment solved in {e} episodes!")
             break
         # print(f"Episode {e} - Mean survival time over last 100 episodes was {mean_score} ticks.")
@@ -118,19 +102,48 @@ epsilon = 1.0
 epsilon_decay = 0.995
 epsilon_min = 0.01
 batch_size = 5
-episodes = 1000
+episodes = 500
 
 memory = deque(maxlen=2000)
 
 agent = DQN(env, learning_rate, gamma, epsilon, epsilon_decay, epsilon_min)
+
+# Load Weights
+agent.model.load_weights("model_weights.h5")
+print("Loaded model weights")
 
 start = time.time()
 train_dqn(agent, episodes, batch_size)
 
 end = time.time()
 
+# Save Weights
+agent.model.save_weights("model_weights.h5")
+print("Saved model weights")
+
 # Calculate total time
 totalTime = end-start
 totalTime = totalTime/60
 
 print(f"Training took {totalTime} Minutes.")
+
+
+print("")
+
+input("Press Enter to test the agent...")
+
+# Test the agent
+env = Environment(planet, satellite, G, True)
+
+while True:
+    state = env.reset()
+    state = np.reshape(state, [1, 6])
+    done = False
+    i = 0
+    while not done:
+        action = agent.act(state)
+        next_state, reward, done = env.next(action)
+        next_state = np.reshape(next_state, [1, 6])
+        state = next_state
+        i += 1
+    print(f"Agent survived for {i} ticks.")
