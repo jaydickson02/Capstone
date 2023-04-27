@@ -93,7 +93,7 @@ class Environment:
 
         # Check if the altitude difference is dramatically increasing
         if (altitudeDifference > 10):
-            reward += -10
+            reward += -1
 
         if (self.step >= self.runtime):
             done = True
