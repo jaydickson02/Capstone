@@ -7,11 +7,12 @@ from gym import spaces
 class Environment:
 
     # Constructor
-    def __init__(self, Planet, Satellite, G, renderEnv=False):
+    def __init__(self, Planet, Satellite, G, runtime, renderEnv=False):
         self.Planet = Planet
         self.Satellite = Satellite
         self.G = G
         self.renderEnv = renderEnv
+        self.runtime = runtime
 
         # Space Variables
         self.action_space = spaces.Discrete(5)
@@ -67,47 +68,35 @@ class Environment:
 
         reward = 0
         done = False
-        # Print all values
-        # print("Previous Altitude Difference: " + str(self.PreviousAltitudeDifference))
-        # print("Altitude: " + str(utils.magnitude(self.Satellite.position - self.Planet.position)))
 
-        # Check the altitude value compared to the previous altitude value
         altitudeDifference = utils.magnitude(
             (self.Satellite.position - self.Planet.position)) - self.previousAltitude
 
         self.altitudeDifferenceList.append(altitudeDifference)
 
-        # print("Altitude Difference: " + str(altitudeDifference))
-
         if (altitudeDifference < self.PreviousAltitudeDifference * 0.8):
-            reward += 5
-            # print(1)
+            reward += 10
 
         # Check the fuel value compared to the previous fuel value
         if (self.Satellite.fuel < self.previousFuel):
             reward += -0.1
-            # print(3)
 
         # Calculate collisions
         if (utils.magnitude(self.Satellite.position - self.Planet.position) < self.Planet.size):
             reward += -100
             done = True
-           # print(4)
 
         # Calculate if the satellite has escaped
         if (utils.magnitude(self.Satellite.position - self.Planet.position) > 500):
             reward += -100
             done = True
-           # print(5)
 
         # Check if the altitude difference is dramatically increasing
         if (altitudeDifference > 10):
             reward += -10
-          #  print(6)
 
-        if (self.step > 1000):
+        if (self.step >= self.runtime):
             done = True
-            # print(7)
 
         # Update the previous values
         self.previousAltitude = utils.magnitude(
