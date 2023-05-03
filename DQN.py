@@ -36,6 +36,10 @@ class DQN:
         act_values = self.model.predict(state, verbose=0)
         return np.argmax(act_values[0])
 
+    def actGreedy(self, state):
+        act_values = self.model.predict(state, verbose=0)
+        return np.argmax(act_values[0])
+
     def replay(self, batch_size):
         if len(self.memory) < batch_size:
             return

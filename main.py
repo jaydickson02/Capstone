@@ -4,7 +4,6 @@ from Environment import Environment
 from DQN import DQN
 
 import numpy as np
-import matplotlib.pyplot as plt
 from collections import deque
 from tqdm import tqdm
 
@@ -57,7 +56,7 @@ def test(agent, runtime):
         i = 0
         reward = 0
         while not done:
-            action = agent.act(state)
+            action = agent.actGreedy(state)
             next_state, reward, done = env.next(action)
             next_state = np.reshape(next_state, [1, 6])
             state = next_state

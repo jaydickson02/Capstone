@@ -1,0 +1,50 @@
+learning_rate = 0.01
+gamma = 0.95
+epsilon = 1.0
+epsilon_decay = 0.995
+epsilon_min = 0.01
+
+Episodes Trained for: 3508
+
+def reward(self):
+
+        reward = 0
+        done = False
+
+        altitudeDifference = utils.magnitude(
+            (self.Satellite.position - self.Planet.position)) - self.previousAltitude
+
+        self.altitudeDifferenceList.append(altitudeDifference)
+
+        if (altitudeDifference < self.PreviousAltitudeDifference * 0.8):
+            reward += 10
+
+        # Check the fuel value compared to the previous fuel value
+        if (self.Satellite.fuel < self.previousFuel):
+            reward += -0.1
+
+        # Calculate collisions
+        if (utils.magnitude(self.Satellite.position - self.Planet.position) < self.Planet.size):
+            reward += -100
+            done = True
+
+        # Calculate if the satellite has escaped
+        if (utils.magnitude(self.Satellite.position - self.Planet.position) > 500):
+            reward += -100
+            done = True
+
+        # Check if the altitude difference is dramatically increasing
+        if (altitudeDifference > 10):
+            reward += -1
+
+        if (self.step >= self.runtime):
+            done = True
+
+        # Update the previous values
+        self.previousAltitude = utils.magnitude(
+            self.Satellite.position - self.Planet.position)
+        self.previousFuel = self.Satellite.fuel
+        self.PreviousAltitudeDifference = altitudeDifference
+
+        # Return the reward and done values
+        return (reward, done)

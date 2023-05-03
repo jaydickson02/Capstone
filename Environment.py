@@ -74,12 +74,12 @@ class Environment:
 
         self.altitudeDifferenceList.append(altitudeDifference)
 
-        if (altitudeDifference < self.PreviousAltitudeDifference * 0.8):
+        if (altitudeDifference < self.PreviousAltitudeDifference * 0.6):
             reward += 10
 
         # Check the fuel value compared to the previous fuel value
         if (self.Satellite.fuel < self.previousFuel):
-            reward += -0.1
+            reward += -0.5
 
         # Calculate collisions
         if (utils.magnitude(self.Satellite.position - self.Planet.position) < self.Planet.size):
@@ -122,7 +122,8 @@ class Environment:
         # Get a random position and velocity for the satellite within bounds
         velocityBounds = [-1, 1]
 
-        velocity = [np.random.uniform(velocityBounds[0], velocityBounds[1]), np.random.uniform(
+        # vy is always zero
+        velocity = [np.random.uniform(velocityBounds[0], 0), np.random.uniform(
             velocityBounds[0], velocityBounds[1])]
 
         # Position is a random vector from the center of the planet
