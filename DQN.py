@@ -5,6 +5,9 @@ from keras.callbacks import ModelCheckpoint
 import random
 import numpy as np
 
+import contextlib
+import io
+
 
 class DQN:
     def __init__(self, env, learning_rate, gamma, epsilon, epsilon_decay, epsilon_min, memory):
@@ -44,6 +47,7 @@ class DQN:
         if len(self.memory) < batch_size:
             return
         minibatch = random.sample(self.memory, batch_size)
+        losses = []
         for state, action, reward, next_state, done in minibatch:
             target = reward
             if not done:
@@ -52,10 +56,22 @@ class DQN:
             target_f = self.model.predict(state, verbose=0)
             target_f[0][action] = target
 
-            self.model.fit(state, target_f, epochs=1, verbose=0,
-                           callbacks=[self.checkpoint])
+            with contextlib.redirect_stdout(io.StringIO()):
+                history = self.model.fit(
+                    state, target_f, epochs=1, verbose=1, callbacks=[self.checkpoint])
+
+            loss = history.history['loss'][0]
+
+            losses.append(loss)
+
         if self.epsilon > self.epsilon_min:
             self.epsilon *= self.epsilon_decay
+
+        # Calculate the average loss
+        losses = np.array(losses)
+        Averageloss = np.mean(losses)
+
+        return (Averageloss, self.epsilon)
 
     def remember(self, state, action, reward, next_state, done):
         self.memory.append((state, action, reward, next_state, done))
