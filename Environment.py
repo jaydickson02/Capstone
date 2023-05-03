@@ -13,19 +13,17 @@ class Environment:
         self.G = G
         self.renderEnv = renderEnv
         self.runtime = runtime
+        self.altitudeTarget = 0
 
         # Space Variables
         self.action_space = spaces.Discrete(5)
-        self.observation_space = spaces.Box(low=np.array([-np.inf, -np.inf, -np.inf, -np.inf, -np.inf, -np.inf]),
+        self.observation_space = spaces.Box(low=np.array([-np.inf, -np.inf, -np.inf, -np.inf, -np.inf, 0, 0]),
                                             high=np.array(
-                                                [np.inf, np.inf, np.inf, np.inf, np.inf, np.inf]),
+                                                [np.inf, np.inf, np.inf, np.inf, np.inf, np.inf, np.inf]),
                                             dtype=np.float32)
 
         # Tracking variables
-        self.previousAltitude = utils.magnitude(
-            self.Satellite.position - self.Planet.position)
         self.previousFuel = self.Satellite.fuel
-        self.PreviousAltitudeDifference = 1
 
         # Step Tracking
         self.step = 0
@@ -36,9 +34,6 @@ class Environment:
             self.canvas = pygame.display.set_mode((1000, 1000))
             self.clock = pygame.time.Clock()
             pygame.display.set_caption("Env Simulation")
-
-        # Altitude Difference List
-        self.altitudeDifferenceList = []
 
     def next(self, action):
 
@@ -53,7 +48,7 @@ class Environment:
         fuel = self.Satellite.fuel
 
         state = [velocity[0], velocity[1],
-                 position[0], position[1], altitude, fuel]
+                 position[0], position[1], altitude, self.altitudeTarget, fuel]
 
         reward, done = self.reward()
 
@@ -69,17 +64,16 @@ class Environment:
         reward = 0
         done = False
 
-        altitudeDifference = utils.magnitude(
-            (self.Satellite.position - self.Planet.position)) - self.previousAltitude
+        altitude = utils.magnitude(
+            self.Satellite.position - self.Planet.position)
 
-        self.altitudeDifferenceList.append(altitudeDifference)
-
-        if (altitudeDifference < self.PreviousAltitudeDifference * 0.6):
+        # Check if the altitide is withing 10 percent of the target
+        if (altitude < self.altitudeTarget * 1.1 and altitude > self.altitudeTarget * 0.9):
             reward += 10
 
         # Check the fuel value compared to the previous fuel value
         if (self.Satellite.fuel < self.previousFuel):
-            reward += -0.5
+            reward += -1
 
         # Calculate collisions
         if (utils.magnitude(self.Satellite.position - self.Planet.position) < self.Planet.size):
@@ -91,18 +85,11 @@ class Environment:
             reward += -100
             done = True
 
-        # Check if the altitude difference is dramatically increasing
-        if (altitudeDifference > 10):
-            reward += -1
-
         if (self.step >= self.runtime):
             done = True
 
         # Update the previous values
-        self.previousAltitude = utils.magnitude(
-            self.Satellite.position - self.Planet.position)
         self.previousFuel = self.Satellite.fuel
-        self.PreviousAltitudeDifference = altitudeDifference
 
         # Return the reward and done values
         return (reward, done)
@@ -115,10 +102,18 @@ class Environment:
             self.Planet.render(self.canvas, 1)
             self.Satellite.render(self.canvas, 1)
 
+            # Draw a circle with a radius of altitudeTarget and the origin at the center of the planet
+            pygame.draw.circle(self.canvas, (0, 0, 0),
+                               self.Planet.position, int(self.altitudeTarget), 1)
+
             # Update the display
             pygame.display.update()
 
     def reset(self):
+
+        # Randomise the altitude target
+        self.altitudeTarget = np.random.uniform(0, 500)
+
         # Get a random position and velocity for the satellite within bounds
         velocityBounds = [-1, 1]
 
@@ -138,12 +133,15 @@ class Environment:
 
         self.Satellite.position = np.array(position)
         self.Satellite.velocity = np.array(velocity)
-        self.Satellite.fuel = 100
 
         self.step = 0
+
+        # Set the fuel value
+        Fuel = 100
+        self.Satellite.fuel = Fuel
 
         # Calculate the initial altitude
         altitude = utils.magnitude(
             self.Satellite.position - self.Planet.position)
 
-        return [velocity[0], velocity[1], position[0], position[1], altitude, 100]
+        return [velocity[0], velocity[1], position[0], position[1], altitude, self.altitudeTarget, Fuel]

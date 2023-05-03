@@ -20,13 +20,13 @@ def train(agent, episodes, batch_size):
 
     for e in tqdm(range(episodes)):
         state = env.reset()
-        state = np.reshape(state, [1, 6])
+        state = np.reshape(state, [1, state_space_size])
 
         done = False
         while not done:
             action = agent.act(state)
             next_state, reward, done = env.next(action)
-            next_state = np.reshape(next_state, [1, 6])
+            next_state = np.reshape(next_state, [1, state_space_size])
             agent.remember(state, action, reward, next_state, done)
             state = next_state
 
@@ -47,18 +47,20 @@ def train(agent, episodes, batch_size):
 
 def test(agent, runtime):
     # Test the agent
+
+    # Set the environment to render mode
     env = Environment(planet, satellite, G, runtime, True)
 
     while True:
         state = env.reset()
-        state = np.reshape(state, [1, 6])
+        state = np.reshape(state, [1, state_space_size])
         done = False
         i = 0
         reward = 0
         while not done:
             action = agent.actGreedy(state)
             next_state, reward, done = env.next(action)
-            next_state = np.reshape(next_state, [1, 6])
+            next_state = np.reshape(next_state, [1, state_space_size])
             state = next_state
             i += 1
             reward += reward
@@ -124,6 +126,10 @@ if __name__ == "__main__":
     # Create environment
     env = Environment(planet, satellite, G, runtime, False)
     env.reset()
+
+    # State and action space shape
+    state_space_size = env.observation_space.shape[0]
+    action_space_size = env.action_space.n
 
     # Memory
     memory = deque(maxlen=2000)
