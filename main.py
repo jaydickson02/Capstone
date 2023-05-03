@@ -14,12 +14,14 @@ from numpy import loadtxt
 import os
 import time
 
+# Allow for arguments to be passed
+import argparse
+
 
 def train(agent, episodes, batch_size):
     # Train the agent
 
-    # Set loaded values
-    RewardListData = rewardList
+    TrainingDataList = TrainingData
 
     # Set best reward to 0
     bestReward = 0
@@ -46,19 +48,19 @@ def train(agent, episodes, batch_size):
 
             rewardAmount += reward
 
-        agent.replay(batch_size)
+        loss, newEpsilon = agent.replay(batch_size)
 
         if (rewardAmount > bestReward):
             bestReward = rewardAmount
 
         # Update values for tracking overall training progress
-        RewardListData.append(rewardAmount)
+        TrainingDataList.append([rewardAmount, loss, newEpsilon])
 
         # Update progress bars best reward value
-        pbar.set_postfix({'Best Reward': bestReward})
+        pbar.set_postfix({'Best Reward': bestReward,
+                         'Current Reward': rewardAmount})
 
-        # Save the reward list (List is a python list, not a numpy array)
-        np.save("rewardList.npy", RewardListData)
+        np.save("TrainingData.npy", np.array(TrainingDataList, dtype=object))
 
     end = time.time()
 
@@ -97,32 +99,43 @@ def evaluateTraining():
     import matplotlib.pyplot as plt
 
     # Load the reward list
-    rewardList = np.load("rewardList.npy").tolist()
+    ValueList = np.load("TrainingData.npy", None, True).tolist()
 
     # Graph the reward per episode
+    xValues = np.arange(len(ValueList))
+
+    # Filter list data
+    rewardList = [x[0] for x in ValueList]
+
+    lossList = [x[1] for x in ValueList]
+
+    epsilonList = [x[2] for x in ValueList]
+
+    # Add trendline
+    z = np.polyfit(xValues, rewardList, 1)
+    p = np.poly1d(z)
 
     # Figure 1
     plt.figure(1)
-    plt.plot(rewardList)
+    plt.plot(xValues, rewardList)
+    plt.plot(xValues, p(xValues), "r--")
     plt.xlabel("Episode")
     plt.ylabel("Reward")
     plt.title("Reward per Episode")
 
-    if (len(rewardList) < 100):
-        print("Not enough data to graph average reward per 100 episodes")
+    # Figure 2
+    plt.figure(2)
+    plt.plot(xValues, lossList)
+    plt.xlabel("Episode")
+    plt.ylabel("Loss")
+    plt.title("Loss per Episode")
 
-    else:
-        # Graph the average reward per 100 episodes
-        rewardListAverage = np.array(rewardList)
-        rewardListAverage = rewardListAverage.reshape(-1, 100)
-        rewardListAverage = np.average(rewardListAverage, axis=1)
-
-        # Figure 2
-        plt.figure(2)
-        plt.plot(rewardList)
-        plt.xlabel("Episode")
-        plt.ylabel("Reward")
-        plt.title("Average Reward per 100 Episodes")
+    # Figure 3
+    plt.figure(3)
+    plt.plot(xValues, epsilonList)
+    plt.xlabel("Episode")
+    plt.ylabel("Epsilon")
+    plt.title("Epsilon per Episode")
 
     # Show the graphs
     plt.show()
@@ -131,51 +144,73 @@ def evaluateTraining():
 # Run if main
 if __name__ == "__main__":
 
-    # Allow for arguments to be passed
-    import argparse
+    # Parse train, test and evaluate arguments
     parser = argparse.ArgumentParser()
     parser.add_argument("--train", help="Train the agent", action="store_true")
     parser.add_argument("--test", help="Test the agent", action="store_true")
     parser.add_argument(
         "--evaluate", help="Evaluate the training", action="store_true")
 
-    # Pass batch size and episodes
+    # Parse batch size and episodes
     parser.add_argument("--batch_size", help="Batch size", type=int)
     parser.add_argument("--episodes", help="Number of episodes", type=int)
 
-    # Pass runtime
+    # Parse runtime
     parser.add_argument("--runtime", help="Runtime of simulation", type=int)
 
     args = parser.parse_args()
 
-    # If no arguments are passed, test the agent
+    # If no arguments are parsed, test the agent
     if not args.train and not args.test and not args.evaluate:
         args.test = True
 
-    # If batch size is passed, set it
+    # If batch size is parsed, set it
     if args.batch_size:
         batch_size = args.batch_size
     else:
         batch_size = 10
 
-    # If episodes is passed, set it
+    # If episodes is parsed, set it
     if args.episodes:
         episodes = args.episodes
     else:
         episodes = 50
 
-    # If runtime is passed, set it
+    # If runtime is parsed, set it
     if args.runtime:
         runtime = args.runtime
     else:
         runtime = 1000
 
+    # Evaluate training and skip the rest
+    if args.evaluate:
+        # Clear the screen
+        os.system("clear")
+        print("Evaluating...")
+        evaluateTraining()
+        exit()
+
+    # Load Training Data list
+    try:
+        TrainingData = np.load("TrainingData.npy", None, True).tolist()
+        TLoad = True
+    except:
+        # Initialise Empty list
+        TrainingData = []
+        TLoad = False
+
     # Hyperparameters
     learning_rate = 0.01
     gamma = 0.95
-    epsilon = 1.0
     epsilon_decay = 0.995
     epsilon_min = 0.01
+
+    # Find the last entry in the training data
+    if TLoad:
+        lastEntry = TrainingData[-1]
+        epsilon = lastEntry[2]
+    else:
+        epsilon = 1
 
     # Environment Parameters
     G = 100
@@ -216,8 +251,16 @@ if __name__ == "__main__":
     print(
         f"Runtime: {runtime}, Episodes: {episodes}, Batch Size: {batch_size}" + "\n")
 
+    # Print environment and agent info
     print("-- Initialised Environment")
     print("-- Created Agent" + "\n")
+
+    # Print training data info
+    if TLoad:
+        print("-- Loaded Training Data")
+        print(f"-- Training Data has {len(TrainingData)} entries" + "\n")
+    else:
+        print("-- No Training Data Found" + "\n")
 
     # Load Weights
     try:
@@ -226,27 +269,15 @@ if __name__ == "__main__":
     except:
         print("-- No model weights found")
 
-    # Load reward list
-    try:
-        rewardList = np.load("rewardList.npy").tolist()
-        print(f"-- Loaded reward values")
-    except:
-        # Initialise Empty Array
-        rewardList = []
-        print("-- No reward values found")
-
     # Print completed episodes
-    print(f"-- Model has completed {len(rewardList)} episodes" + "\n")
+    print(
+        f"-- Model has completed {len(TrainingData)} episodes of training" + "\n")
 
-    # Train or test
+    # Train or test depending on arguments
     if args.train:
-        print("Training...")
+        print("Training..." + "\n")
         train(agent, episodes, batch_size)
 
     if args.test:
         print("Testing...")
         test(agent, runtime)
-
-    if args.evaluate:
-        print("Evaluating...")
-        evaluateTraining()
