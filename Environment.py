@@ -14,6 +14,7 @@ class Environment:
         self.renderEnv = renderEnv
         self.runtime = runtime
         self.altitudeTarget = 0
+        self.rewardValue = 0
 
         # Space Variables
         self.action_space = spaces.Discrete(5)
@@ -50,18 +51,21 @@ class Environment:
         state = [velocity[0], velocity[1],
                  position[0], position[1], altitude, self.altitudeTarget, fuel]
 
-        reward, done = self.reward()
+        rewardAmount, done = self.reward()
+
+        # Update self.rewardValue
+        self.rewardValue += rewardAmount
 
         self.step += 1
         # done = False
         if (self.renderEnv):
             self.render(done)
 
-        return (state, reward, done)
+        return (state, rewardAmount, done)
 
     def reward(self):
 
-        reward = 0
+        rewardAmount = 0
         done = False
 
         altitude = utils.magnitude(
@@ -69,21 +73,25 @@ class Environment:
 
         # Check if the altitide is withing 10 percent of the target
         if (altitude < self.altitudeTarget * 1.1 and altitude > self.altitudeTarget * 0.9):
-            reward += 10
+            rewardAmount += 10
 
         # Check the fuel value compared to the previous fuel value
         if (self.Satellite.fuel < self.previousFuel):
-            reward += -1
+            rewardAmount += -1
 
         # Calculate collisions
         if (utils.magnitude(self.Satellite.position - self.Planet.position) < self.Planet.size):
-            reward += -100
+            rewardAmount += -100
             done = True
 
         # Calculate if the satellite has escaped
         if (utils.magnitude(self.Satellite.position - self.Planet.position) > 500):
-            reward += -100
+            # rewardAmount += -100
             done = True
+
+        # Calculate if the satellite has run out of fuel
+        if (self.Satellite.fuel <= 0):
+            rewardAmount += -100
 
         if (self.step >= self.runtime):
             done = True
@@ -92,7 +100,7 @@ class Environment:
         self.previousFuel = self.Satellite.fuel
 
         # Return the reward and done values
-        return (reward, done)
+        return (rewardAmount, done)
 
     # Render
 
@@ -106,13 +114,38 @@ class Environment:
             pygame.draw.circle(self.canvas, (0, 0, 0),
                                self.Planet.position, int(self.altitudeTarget), 1)
 
+            # Display significant values
+            font = pygame.font.Font('freesansbold.ttf', 12)
+            text = font.render("Altitude: " + str(round(utils.magnitude(
+                self.Satellite.position - self.Planet.position), 2)), True, (0, 0, 0))
+            textRect = text.get_rect()
+            textRect.center = (500, 50)
+            self.canvas.blit(text, textRect)
+
+            text = font.render(
+                "Fuel: " + str(round(self.Satellite.fuel, 2)), True, (0, 0, 0))
+            textRect = text.get_rect()
+            textRect.center = (500, 70)
+            self.canvas.blit(text, textRect)
+
+            text = font.render(
+                "Reward: " + str(round(self.rewardValue, 2)), True, (0, 0, 0))
+            textRect = text.get_rect()
+            textRect.center = (500, 90)
+            self.canvas.blit(text, textRect)
+
+            text = font.render("Step: " + str(self.step), True, (0, 0, 0))
+            textRect = text.get_rect()
+            textRect.center = (500, 110)
+            self.canvas.blit(text, textRect)
+
             # Update the display
             pygame.display.update()
 
     def reset(self):
 
         # Randomise the altitude target
-        self.altitudeTarget = np.random.uniform(0, 500)
+        self.altitudeTarget = np.random.uniform(self.Planet.size + 10, 450)
 
         # Get a random position and velocity for the satellite within bounds
         velocityBounds = [-1, 1]
@@ -126,7 +159,7 @@ class Environment:
             np.array([np.random.uniform(-1, 1), np.random.uniform(-1, 1)]))
 
         # Scalled randomly to be bigger than the planet but less than the screen size
-        position = position * (self.Planet.size + (np.random.uniform(10, 800)))
+        position = position * (self.Planet.size + (np.random.uniform(10, 490)))
 
         # Add the positions to make the planet the origin
         position = position + self.Planet.position
@@ -134,10 +167,12 @@ class Environment:
         self.Satellite.position = np.array(position)
         self.Satellite.velocity = np.array(velocity)
 
+        # Reset the step counter and reward value
         self.step = 0
+        self.rewardValue = 0
 
         # Set the fuel value
-        Fuel = 100
+        Fuel = 50
         self.Satellite.fuel = Fuel
 
         # Calculate the initial altitude
