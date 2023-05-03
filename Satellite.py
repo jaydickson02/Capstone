@@ -23,9 +23,13 @@ class Satellite:
         acceleration = self.applyAcceleration(
             Planet, gAcc, tangentalAcceleration, "prograde")
 
-        self.fuel = self.fuel - tangentalAcceleration
+        if (self.fuel > 0):
 
-        self.propogate(acceleration)
+            self.fuel = self.fuel - abs(tangentalAcceleration)
+            self.propogate(acceleration)
+        else:
+
+            self.propogate(0)
 
     # Method to calculate the gravity acceleration
     def gravityAcceleration(self, Planet, G):
