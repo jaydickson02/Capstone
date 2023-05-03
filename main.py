@@ -7,6 +7,10 @@ import numpy as np
 from collections import deque
 from tqdm import tqdm
 
+from numpy import asarray
+from numpy import savetxt
+from numpy import loadtxt
+
 import os
 import time
 
@@ -14,15 +18,25 @@ import time
 def train(agent, episodes, batch_size):
     # Train the agent
 
-    EpisodeCount = completedEpisodes
+    # Set loaded values
+    RewardListData = rewardList
 
+    # Set best reward to 0
+    bestReward = 0
+
+    # Set start time
     start = time.time()
 
-    for e in tqdm(range(episodes)):
+    # Initialise progress bar
+    pbar = tqdm(range(episodes))
+
+    for e in pbar:
+
         state = env.reset()
         state = np.reshape(state, [1, state_space_size])
 
         done = False
+        rewardAmount = 0
         while not done:
             action = agent.act(state)
             next_state, reward, done = env.next(action)
@@ -30,11 +44,21 @@ def train(agent, episodes, batch_size):
             agent.remember(state, action, reward, next_state, done)
             state = next_state
 
-        agent.replay(batch_size)
-        EpisodeCount += 1
+            rewardAmount += reward
 
-        # Save the value of completed episodes every time
-        np.save("completedEpisodes.npy", EpisodeCount)
+        agent.replay(batch_size)
+
+        if (rewardAmount > bestReward):
+            bestReward = rewardAmount
+
+        # Update values for tracking overall training progress
+        RewardListData.append(rewardAmount)
+
+        # Update progress bars best reward value
+        pbar.set_postfix({'Best Reward': bestReward})
+
+        # Save the reward list (List is a python list, not a numpy array)
+        np.save("rewardList.npy", RewardListData)
 
     end = time.time()
 
@@ -56,15 +80,52 @@ def test(agent, runtime):
         state = np.reshape(state, [1, state_space_size])
         done = False
         i = 0
-        reward = 0
+        rewardTotal = 0
         while not done:
             action = agent.actGreedy(state)
             next_state, reward, done = env.next(action)
             next_state = np.reshape(next_state, [1, state_space_size])
             state = next_state
             i += 1
-            reward += reward
-        print(f"Agent survived for {i} ticks. Got a reward of {reward}")
+            rewardTotal += reward
+        print(f"Agent survived for {i} ticks. Got a reward of {rewardTotal}")
+
+
+def evaluateTraining():
+
+    # Output graphs
+    import matplotlib.pyplot as plt
+
+    # Load the reward list
+    rewardList = np.load("rewardList.npy").tolist()
+
+    # Graph the reward per episode
+
+    # Figure 1
+    plt.figure(1)
+    plt.plot(rewardList)
+    plt.xlabel("Episode")
+    plt.ylabel("Reward")
+    plt.title("Reward per Episode")
+
+    if (len(rewardList) < 100):
+        print("Not enough data to graph average reward per 100 episodes")
+
+    else:
+        # Graph the average reward per 100 episodes
+        rewardListAverage = np.array(rewardList)
+        rewardListAverage = rewardListAverage.reshape(-1, 100)
+        rewardListAverage = np.average(rewardListAverage, axis=1)
+
+        # Figure 2
+        plt.figure(2)
+        plt.plot(rewardList)
+        plt.xlabel("Episode")
+        plt.ylabel("Reward")
+        plt.title("Average Reward per 100 Episodes")
+
+    # Show the graphs
+    plt.show()
 
 
 # Run if main
@@ -75,6 +136,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--train", help="Train the agent", action="store_true")
     parser.add_argument("--test", help="Test the agent", action="store_true")
+    parser.add_argument(
+        "--evaluate", help="Evaluate the training", action="store_true")
 
     # Pass batch size and episodes
     parser.add_argument("--batch_size", help="Batch size", type=int)
@@ -86,7 +149,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # If no arguments are passed, test the agent
-    if not args.train and not args.test:
+    if not args.train and not args.test and not args.evaluate:
         args.test = True
 
     # If batch size is passed, set it
@@ -163,13 +226,17 @@ if __name__ == "__main__":
     except:
         print("-- No model weights found")
 
-    # Load completed episodes
+    # Load reward list
     try:
-        completedEpisodes = np.load("completedEpisodes.npy")
-        print(f"-- Model has completed {completedEpisodes} episodes" + "\n")
+        rewardList = np.load("rewardList.npy").tolist()
+        print(f"-- Loaded reward values")
     except:
-        completedEpisodes = 0
-        print("-- No episodes completed" + "\n")
+        # Initialise Empty Array
+        rewardList = []
+        print("-- No reward values found")
+
+    # Print completed episodes
+    print(f"-- Model has completed {len(rewardList)} episodes" + "\n")
 
     # Train or test
     if args.train:
@@ -179,3 +246,7 @@ if __name__ == "__main__":
     if args.test:
         print("Testing...")
         test(agent, runtime)
+
+    if args.evaluate:
+        print("Evaluating...")
+        evaluateTraining()
