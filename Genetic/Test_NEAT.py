@@ -19,7 +19,7 @@ import visualize
 
 NUM_CORES = 8
 
-env = gym.make('LunarLander-v2')
+env = gym.make('LunarLander-v2', render_mode='human')
 
 print("action space: {0!r}".format(env.action_space))
 print("observation space: {0!r}".format(env.observation_space))
@@ -87,7 +87,8 @@ class PooledErrorCompute(object):
     def simulate(self, nets):
         scores = []
         for genome, net in nets:
-            observation = env.reset()
+            observation = env.reset()[0]
+            env.render()
             step = 0
             data = []
             while 1:
@@ -98,7 +99,7 @@ class PooledErrorCompute(object):
                     output = net.activate(observation)
                     action = np.argmax(output)
 
-                observation, reward, done, info = env.step(action)
+                observation, reward, done, t, i = env.step(action)
                 data.append(np.hstack((observation, action, reward)))
 
                 if done:
@@ -170,6 +171,8 @@ def run():
     # Checkpoint every 25 generations or 900 seconds.
     pop.add_reporter(neat.Checkpointer(25, 900))
 
+    
+
     # Run until the winner from a generation is able to solve the environment
     # or the user interrupts the process.
     ec = PooledErrorCompute(NUM_CORES)
@@ -178,6 +181,7 @@ def run():
             gen_best = pop.run(ec.evaluate_genomes, 5)
 
             # print(gen_best)
+
 
             visualize.plot_stats(stats, ylog=False, view=False, filename="fitness.svg")
 
