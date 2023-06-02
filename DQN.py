@@ -36,7 +36,10 @@ class DQN:
     def act(self, state):
         if np.random.rand() <= self.epsilon:
             return np.random.randint(self.action_space)
+
+        # Im the slow down. Welcome to bottleneck city. 17 ms per run.
         act_values = self.model.predict(state, verbose=0)
+
         return np.argmax(act_values[0])
 
     def actGreedy(self, state):

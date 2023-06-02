@@ -46,6 +46,7 @@ class Environment:
         position = self.Satellite.position
         altitude = utils.magnitude(
             self.Satellite.position - self.Planet.position)
+
         fuel = self.Satellite.fuel
 
         state = [velocity[0], velocity[1],
@@ -71,9 +72,9 @@ class Environment:
         altitude = utils.magnitude(
             self.Satellite.position - self.Planet.position)
 
-        # Check if the altitide is withing 10 percent of the target
-        if (altitude < self.altitudeTarget * 1.1 and altitude > self.altitudeTarget * 0.9):
-            rewardAmount += 10
+        # Check if the altitide is within 1 percent of the target
+        if (altitude < self.altitudeTarget * 1.01 and altitude > self.altitudeTarget * 0.99):
+            rewardAmount += 2
 
         # Check the fuel value compared to the previous fuel value
         if (self.Satellite.fuel < self.previousFuel):

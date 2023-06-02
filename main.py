@@ -7,10 +7,6 @@ import numpy as np
 from collections import deque
 from tqdm import tqdm
 
-from numpy import asarray
-from numpy import savetxt
-from numpy import loadtxt
-
 import os
 import time
 
@@ -18,7 +14,27 @@ import time
 import argparse
 
 
-def train(agent, episodes, batch_size):
+def investigate(list):
+    # Investigate a list of values
+
+    # Seperate into individual lists
+    Action = [x[0] for x in list]
+    Next = [x[1] for x in list]
+    Reshape = [x[2] for x in list]
+    Remember = [x[3] for x in list]
+    StoreNextState = [x[4] for x in list]
+    IterateReward = [x[5] for x in list]
+
+    # Investigate each list
+    print("Action: " + str(np.mean(Action)))
+    print("Next: " + str(np.mean(Next)))
+    print("Reshape: " + str(np.mean(Reshape)))
+    print("Remember: " + str(np.mean(Remember)))
+    print("StoreNextState: " + str(np.mean(StoreNextState)))
+    print("IterateReward: " + str(np.mean(IterateReward)))
+
+
+def train(agent, episodes, batch_size, verbose=0):
     # Train the agent
 
     TrainingDataList = TrainingData
@@ -35,20 +51,60 @@ def train(agent, episodes, batch_size):
     for e in pbar:
 
         state = env.reset()
-        state = np.reshape(state, [1, state_space_size])
 
+        state = np.reshape(state, [1, state_space_size])
         done = False
         rewardAmount = 0
-        while not done:
-            action = agent.act(state)
-            next_state, reward, done = env.next(action)
-            next_state = np.reshape(next_state, [1, state_space_size])
-            agent.remember(state, action, reward, next_state, done)
-            state = next_state
 
+        TimeList = []
+
+        startSim = time.time()
+        while not done:
+            startAct = time.time()
+            action = agent.act(state)
+            endAct = time.time()
+
+            startNext = time.time()
+            next_state, reward, done = env.next(action)
+            endNext = time.time()
+
+            startReshape = time.time()
+            next_state = np.reshape(next_state, [1, state_space_size])
+            endReshape = time.time()
+
+            startRemember = time.time()
+            agent.remember(state, action, reward, next_state, done)
+            endRemember = time.time()
+
+            startStoreNextState = time.time()
+            state = next_state
+            endStoreNextState = time.time()
+
+            startIterateReward = time.time()
             rewardAmount += reward
+            endIterateReward = time.time()
+
+            # Time Totals in ms
+            actTime = (endAct-startAct)*1000
+            nextTime = (endNext-startNext)*1000
+            reshapeTime = (endReshape-startReshape)*1000
+            rememberTime = (endRemember-startRemember)*1000
+            storeNextStateTime = (endStoreNextState-startStoreNextState)*1000
+            iterateRewardTime = (endIterateReward-startIterateReward)*1000
+
+            # Append to list
+            TimeList.append([actTime, nextTime, reshapeTime,
+                             rememberTime, storeNextStateTime, iterateRewardTime])
+
+        endSim = time.time()
+
+        investigate(TimeList)
+
+        startReplay = time.time()
 
         loss, newEpsilon = agent.replay(batch_size)
+
+        endReplay = time.time()
 
         if (rewardAmount > bestReward):
             bestReward = rewardAmount
@@ -56,11 +112,30 @@ def train(agent, episodes, batch_size):
         # Update values for tracking overall training progress
         TrainingDataList.append([rewardAmount, loss, newEpsilon])
 
-        # Update progress bars best reward value
-        pbar.set_postfix({'Best Reward': bestReward,
-                         'Current Reward': rewardAmount})
-
         np.save("TrainingData.npy", np.array(TrainingDataList, dtype=object))
+
+        # Time Totals in ms
+        simTime = (endSim-startSim)*1000
+        replayTime = (endReplay-startReplay)*1000
+
+        # Format to 2 decimal places
+        simTime = "{:.2f}".format(simTime)
+        replayTime = "{:.2f}".format(replayTime)
+
+        if verbose == 0:
+            pbar.set_postfix({'Best Reward': bestReward})
+
+        if verbose == 1:
+            pbar.set_postfix({'Best Reward': bestReward,
+                             'Current Reward': rewardAmount})
+
+        if verbose == 2:
+            pbar.set_postfix({'Best Reward': bestReward, 'Current Reward': rewardAmount,
+                             'Sim(ms)': simTime, 'Replay(ms)': replayTime})
+
+        if verbose == 3:
+            pbar.set_postfix({'Best Reward': bestReward, 'Current Reward': rewardAmount,
+                             'Sim(ms)': simTime, 'Replay(ms)': replayTime, 'Loss': loss, 'Epsilon': newEpsilon})
 
     end = time.time()
 
@@ -93,7 +168,7 @@ def test(agent, runtime):
         print(f"Agent survived for {i} ticks. Got a reward of {rewardTotal}")
 
 
-def evaluateTraining():
+def evaluateTraining(combine):
 
     # Output graphs
     import matplotlib.pyplot as plt
@@ -115,27 +190,40 @@ def evaluateTraining():
     z = np.polyfit(xValues, rewardList, 1)
     p = np.poly1d(z)
 
-    # Figure 1
-    plt.figure(1)
-    plt.plot(xValues, rewardList)
-    plt.plot(xValues, p(xValues), "r--")
-    plt.xlabel("Episode")
-    plt.ylabel("Reward")
-    plt.title("Reward per Episode")
+    if (combine == True):
 
-    # Figure 2
-    plt.figure(2)
-    plt.plot(xValues, lossList)
-    plt.xlabel("Episode")
-    plt.ylabel("Loss")
-    plt.title("Loss per Episode")
+        # Combine the graphs into one
+        plt.figure(1)
+        plt.plot(xValues, rewardList)
+        plt.plot(xValues, p(xValues), "r--")
+        plt.plot(xValues, lossList)
+        plt.plot(xValues, epsilonList)
+        plt.xlabel("Episode")
+        plt.ylabel("Reward/Loss/Epsilon")
+        plt.title("Reward/Loss/Epsilon per Episode")
 
-    # Figure 3
-    plt.figure(3)
-    plt.plot(xValues, epsilonList)
-    plt.xlabel("Episode")
-    plt.ylabel("Epsilon")
-    plt.title("Epsilon per Episode")
+    else:
+        # Figure 1
+        plt.figure(1)
+        plt.plot(xValues, rewardList)
+        plt.plot(xValues, p(xValues), "r--")
+        plt.xlabel("Episode")
+        plt.ylabel("Reward")
+        plt.title("Reward per Episode")
+
+        # Figure 2
+        plt.figure(2)
+        plt.plot(xValues, lossList)
+        plt.xlabel("Episode")
+        plt.ylabel("Loss")
+        plt.title("Loss per Episode")
+
+        # Figure 3
+        plt.figure(3)
+        plt.plot(xValues, epsilonList)
+        plt.xlabel("Episode")
+        plt.ylabel("Epsilon")
+        plt.title("Epsilon per Episode")
 
     # Show the graphs
     plt.show()
@@ -157,6 +245,13 @@ if __name__ == "__main__":
 
     # Parse runtime
     parser.add_argument("--runtime", help="Runtime of simulation", type=int)
+
+    # Parse verbose
+    parser.add_argument("--verbose", help="Verbose level", type=int)
+
+    # Parse combine
+    parser.add_argument("--combine", help="Combine graphs",
+                        action="store_true")
 
     args = parser.parse_args()
 
@@ -182,12 +277,24 @@ if __name__ == "__main__":
     else:
         runtime = 1000
 
+    # If verbose is parsed, set it
+    if args.verbose:
+        verbose = args.verbose
+    else:
+        verbose = 0
+
+    # If combine is parsed, set it
+    if args.combine:
+        combine = args.combine
+    else:
+        combine = False
+
     # Evaluate training and skip the rest
     if args.evaluate:
         # Clear the screen
         os.system("clear")
         print("Evaluating...")
-        evaluateTraining()
+        evaluateTraining(combine)
         exit()
 
     # Load Training Data list
@@ -202,7 +309,7 @@ if __name__ == "__main__":
     # Hyperparameters
     learning_rate = 0.01
     gamma = 0.95
-    epsilon_decay = 0.995
+    epsilon_decay = 0.9995
     epsilon_min = 0.01
 
     # Find the last entry in the training data
@@ -276,7 +383,7 @@ if __name__ == "__main__":
     # Train or test depending on arguments
     if args.train:
         print("Training..." + "\n")
-        train(agent, episodes, batch_size)
+        train(agent, episodes, batch_size, verbose)
 
     if args.test:
         print("Testing...")

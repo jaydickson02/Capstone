@@ -18,7 +18,6 @@ class Satellite:
     # Method to run the satellite
 
     def run(self, Planet, G, tangentalAcceleration):
-
         gAcc = self.gravityAcceleration(Planet, G)
         acceleration = self.applyAcceleration(
             Planet, gAcc, tangentalAcceleration, "prograde")
