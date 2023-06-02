@@ -19,7 +19,9 @@ import visualize
 
 NUM_CORES = 8
 
-env = gym.make('LunarLander-v2', render_mode='human')
+env = gym.make('LunarLander-v2')
+
+# , render_mode='human'
 
 print("action space: {0!r}".format(env.action_space))
 print("observation space: {0!r}".format(env.observation_space))
@@ -88,7 +90,6 @@ class PooledErrorCompute(object):
         scores = []
         for genome, net in nets:
             observation = env.reset()[0]
-            env.render()
             step = 0
             data = []
             while 1:
@@ -138,8 +139,10 @@ class PooledErrorCompute(object):
         print("Evaluating {0} test episodes".format(len(self.test_episodes)))
         if self.num_workers < 2:
             for genome, net in nets:
-                reward_error = compute_fitness(genome, net, self.test_episodes, self.min_reward, self.max_reward)
-                genome.fitness = -np.sum(reward_error) / len(self.test_episodes)
+                reward_error = compute_fitness(
+                    genome, net, self.test_episodes, self.min_reward, self.max_reward)
+                genome.fitness = -np.sum(reward_error) / \
+                    len(self.test_episodes)
         else:
             with multiprocessing.Pool(self.num_workers) as pool:
                 jobs = []
@@ -150,7 +153,8 @@ class PooledErrorCompute(object):
 
                 for job, (genome_id, genome) in zip(jobs, genomes):
                     reward_error = job.get(timeout=None)
-                    genome.fitness = -np.sum(reward_error) / len(self.test_episodes)
+                    genome.fitness = - \
+                        np.sum(reward_error) / len(self.test_episodes)
 
         print("final fitness compute time {0}\n".format(time.time() - t0))
 
@@ -171,19 +175,20 @@ def run():
     # Checkpoint every 25 generations or 900 seconds.
     pop.add_reporter(neat.Checkpointer(25, 900))
 
-    
-
     # Run until the winner from a generation is able to solve the environment
     # or the user interrupts the process.
     ec = PooledErrorCompute(NUM_CORES)
+
+    generation = 0
+
     while 1:
         try:
             gen_best = pop.run(ec.evaluate_genomes, 5)
 
             # print(gen_best)
 
-
-            visualize.plot_stats(stats, ylog=False, view=False, filename="fitness.svg")
+            visualize.plot_stats(
+                stats, ylog=False, view=False, filename="fitness.svg")
 
             plt.plot(ec.episode_score, 'g-', label='score')
             plt.plot(ec.episode_length, 'b-', label='length')
@@ -193,21 +198,25 @@ def run():
             plt.close()
 
             mfs = sum(stats.get_fitness_mean()[-5:]) / 5.0
-            print("Average mean fitness over last 5 generations: {0}".format(mfs))
+            print(
+                "Average mean fitness over last 5 generations: {0}".format(mfs))
 
             mfs = sum(stats.get_fitness_stat(min)[-5:]) / 5.0
-            print("Average min fitness over last 5 generations: {0}".format(mfs))
+            print(
+                "Average min fitness over last 5 generations: {0}".format(mfs))
 
             # Use the best genomes seen so far as an ensemble-ish control system.
             best_genomes = stats.best_unique_genomes(3)
             best_networks = []
             for g in best_genomes:
-                best_networks.append(neat.nn.FeedForwardNetwork.create(g, config))
+                best_networks.append(
+                    neat.nn.FeedForwardNetwork.create(g, config))
 
             solved = True
             best_scores = []
             for k in range(100):
-                observation = env.reset()
+
+                observation = env.reset()[0]
                 score = 0
                 step = 0
                 while 1:
@@ -220,7 +229,7 @@ def run():
                         votes[np.argmax(output)] += 1
 
                     best_action = np.argmax(votes)
-                    observation, reward, done, info = env.step(best_action)
+                    observation, reward, done, t, i = env.step(best_action)
                     score += reward
                     env.render()
                     if done:
@@ -245,8 +254,10 @@ def run():
                     with open(name + '.pickle', 'wb') as f:
                         pickle.dump(g, f)
 
-                    visualize.draw_net(config, g, view=False, filename=name + "-net.gv")
-                    visualize.draw_net(config, g, view=False, filename=name + "-net-pruned.gv", prune_unused=True)
+                    visualize.draw_net(config, g, view=False,
+                                       filename=name + "-net.gv")
+                    visualize.draw_net(
+                        config, g, view=False, filename=name + "-net-pruned.gv", prune_unused=True)
 
                 break
         except KeyboardInterrupt:
