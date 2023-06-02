@@ -253,7 +253,15 @@ if __name__ == "__main__":
     parser.add_argument("--combine", help="Combine graphs",
                         action="store_true")
 
+    # Parse genetic algorithm
+    parser.add_argument("--genetic", help="Genetic Algorithm", action="store_true")
+
     args = parser.parse_args()
+
+    # geneticAlgorithm #Camelpaste
+    # GeneticAlgorithm #Caps
+    # genetic_algorithm
+
 
     # If no arguments are parsed, test the agent
     if not args.train and not args.test and not args.evaluate:
