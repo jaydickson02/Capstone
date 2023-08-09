@@ -1,5 +1,6 @@
 from Planet import Planet
 from Satellite import Satellite
+from dotAgent import dotAgent
 from Environment import Environment
 from DQN import DQN
 
@@ -53,89 +54,51 @@ def train(agent, episodes, batch_size, verbose=0):
         state = env.reset()
 
         state = np.reshape(state, [1, state_space_size])
+
         done = False
         rewardAmount = 0
 
-        TimeList = []
+        ReplayTrigger = 100
+        ReplayTracker = 0
 
-        startSim = time.time()
+        loss = 0
+        newEpsilon = 0
+
         while not done:
-            startAct = time.time()
+
             action = agent.act(state)
-            endAct = time.time()
-
-            startNext = time.time()
-            next_state, reward, done = env.next(action)
-            endNext = time.time()
-
-            startReshape = time.time()
+            next_state, reward, done = env.next(action, state)
             next_state = np.reshape(next_state, [1, state_space_size])
-            endReshape = time.time()
-
-            startRemember = time.time()
             agent.remember(state, action, reward, next_state, done)
-            endRemember = time.time()
-
-            startStoreNextState = time.time()
             state = next_state
-            endStoreNextState = time.time()
 
-            startIterateReward = time.time()
             rewardAmount += reward
-            endIterateReward = time.time()
 
-            # Time Totals in ms
-            actTime = (endAct-startAct)*1000
-            nextTime = (endNext-startNext)*1000
-            reshapeTime = (endReshape-startReshape)*1000
-            rememberTime = (endRemember-startRemember)*1000
-            storeNextStateTime = (endStoreNextState-startStoreNextState)*1000
-            iterateRewardTime = (endIterateReward-startIterateReward)*1000
+            if (ReplayTracker == ReplayTrigger):
+                if (len(agent.memory) < batch_size):
+                    batch_size = len(agent.memory)
 
-            # Append to list
-            TimeList.append([actTime, nextTime, reshapeTime,
-                             rememberTime, storeNextStateTime, iterateRewardTime])
+                loss, newEpsilon = agent.replay(batch_size)
+                ReplayTracker = 0
 
-        endSim = time.time()
-
-        investigate(TimeList)
-
-        startReplay = time.time()
-
-        loss, newEpsilon = agent.replay(batch_size)
-
-        endReplay = time.time()
+            ReplayTracker += 1
 
         if (rewardAmount > bestReward):
             bestReward = rewardAmount
+
+        agent.save_state('saved_state.pkl')
 
         # Update values for tracking overall training progress
         TrainingDataList.append([rewardAmount, loss, newEpsilon])
 
         np.save("TrainingData.npy", np.array(TrainingDataList, dtype=object))
 
-        # Time Totals in ms
-        simTime = (endSim-startSim)*1000
-        replayTime = (endReplay-startReplay)*1000
-
-        # Format to 2 decimal places
-        simTime = "{:.2f}".format(simTime)
-        replayTime = "{:.2f}".format(replayTime)
-
         if verbose == 0:
             pbar.set_postfix({'Best Reward': bestReward})
 
         if verbose == 1:
             pbar.set_postfix({'Best Reward': bestReward,
-                             'Current Reward': rewardAmount})
-
-        if verbose == 2:
-            pbar.set_postfix({'Best Reward': bestReward, 'Current Reward': rewardAmount,
-                             'Sim(ms)': simTime, 'Replay(ms)': replayTime})
-
-        if verbose == 3:
-            pbar.set_postfix({'Best Reward': bestReward, 'Current Reward': rewardAmount,
-                             'Sim(ms)': simTime, 'Replay(ms)': replayTime, 'Loss': loss, 'Epsilon': newEpsilon})
+                             'Current Reward': rewardAmount, 'Loss': loss, 'Epsilon': newEpsilon})
 
     end = time.time()
 
@@ -150,7 +113,7 @@ def test(agent, runtime):
     # Test the agent
 
     # Set the environment to render mode
-    env = Environment(planet, satellite, G, runtime, True)
+    env = Environment(DotAgent, planet, satellite, G, runtime, True)
 
     while True:
         state = env.reset()
@@ -160,7 +123,7 @@ def test(agent, runtime):
         rewardTotal = 0
         while not done:
             action = agent.actGreedy(state)
-            next_state, reward, done = env.next(action)
+            next_state, reward, done = env.next(action, state)
             next_state = np.reshape(next_state, [1, state_space_size])
             state = next_state
             i += 1
@@ -232,70 +195,40 @@ def evaluateTraining(combine):
 # Run if main
 if __name__ == "__main__":
 
-    # Parse train, test and evaluate arguments
     parser = argparse.ArgumentParser()
+
+    # General actions
     parser.add_argument("--train", help="Train the agent", action="store_true")
     parser.add_argument("--test", help="Test the agent", action="store_true")
     parser.add_argument(
         "--evaluate", help="Evaluate the training", action="store_true")
 
-    # Parse batch size and episodes
-    parser.add_argument("--batch_size", help="Batch size", type=int)
-    parser.add_argument("--episodes", help="Number of episodes", type=int)
-
-    # Parse runtime
-    parser.add_argument("--runtime", help="Runtime of simulation", type=int)
-
-    # Parse verbose
-    parser.add_argument("--verbose", help="Verbose level", type=int)
-
-    # Parse combine
+    # Hyperparameters
+    parser.add_argument("--batch_size", help="Batch size",
+                        type=int, default=10)
+    parser.add_argument(
+        "--episodes", help="Number of episodes", type=int, default=50)
+    parser.add_argument(
+        "--runtime", help="Runtime of simulation", type=int, default=1000)
+    parser.add_argument("--verbose", help="Verbose level", type=int, default=0)
     parser.add_argument("--combine", help="Combine graphs",
-                        action="store_true")
+                        action="store_true", default=False)
 
-    # Parse genetic algorithm
-    parser.add_argument("--genetic", help="Genetic Algorithm", action="store_true")
+    # Special features
+    parser.add_argument("--genetic", help="Genetic Algorithm",
+                        action="store_true", default=False)
 
     args = parser.parse_args()
 
-    # geneticAlgorithm #Camelpaste
-    # GeneticAlgorithm #Caps
-    # genetic_algorithm
-
-
     # If no arguments are parsed, test the agent
-    if not args.train and not args.test and not args.evaluate:
-        args.test = True
+    args.test = args.test or not args.train and not args.evaluate
 
-    # If batch size is parsed, set it
-    if args.batch_size:
-        batch_size = args.batch_size
-    else:
-        batch_size = 10
-
-    # If episodes is parsed, set it
-    if args.episodes:
-        episodes = args.episodes
-    else:
-        episodes = 50
-
-    # If runtime is parsed, set it
-    if args.runtime:
-        runtime = args.runtime
-    else:
-        runtime = 1000
-
-    # If verbose is parsed, set it
-    if args.verbose:
-        verbose = args.verbose
-    else:
-        verbose = 0
-
-    # If combine is parsed, set it
-    if args.combine:
-        combine = args.combine
-    else:
-        combine = False
+    # Set values based on parsed arguments or use defaults
+    batch_size = args.batch_size or 10
+    episodes = args.episodes or 50
+    runtime = args.runtime or 1000
+    verbose = args.verbose or 0
+    combine = args.combine or False
 
     # Evaluate training and skip the rest
     if args.evaluate:
@@ -315,10 +248,11 @@ if __name__ == "__main__":
         TLoad = False
 
     # Hyperparameters
-    learning_rate = 0.01
-    gamma = 0.95
-    epsilon_decay = 0.9995
+    learning_rate = 0.001
+    gamma = 0.99
+    epsilon_decay = 0.00001
     epsilon_min = 0.01
+    target_update_frequency = 25
 
     # Find the last entry in the training data
     if TLoad:
@@ -335,9 +269,10 @@ if __name__ == "__main__":
     # Create objects
     planet = Planet([Width/2, Height/2], 20, 1, [0, 0, 0])
     satellite = Satellite([Width/2, (Height/2)], [0, 0], 3, [0, 0, 0])
+    DotAgent = dotAgent([Width/2, (Height/2)], [0, 0], 3, [0, 0, 0])
 
     # Create environment
-    env = Environment(planet, satellite, G, runtime, False)
+    env = Environment(DotAgent, planet, satellite, G, runtime, False)
     env.reset()
 
     # State and action space shape
@@ -345,11 +280,11 @@ if __name__ == "__main__":
     action_space_size = env.action_space.n
 
     # Memory
-    memory = deque(maxlen=2000)
+    memory = deque(maxlen=10000)
 
     # Create agent
     agent = DQN(env, learning_rate, gamma, epsilon,
-                epsilon_decay, epsilon_min, memory)
+                epsilon_decay, epsilon_min, memory, target_update_frequency)
 
     # Clear the screen
     os.system("clear")
@@ -379,7 +314,7 @@ if __name__ == "__main__":
 
     # Load Weights
     try:
-        agent.model.load_weights("best_model.h5")
+        agent.load_state('saved_state.pkl')
         print("-- Loaded model weights")
     except:
         print("-- No model weights found")

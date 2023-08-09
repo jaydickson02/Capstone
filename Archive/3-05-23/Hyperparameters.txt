@@ -16,7 +16,7 @@ def reward(self):
         altitude = utils.magnitude(
             self.Satellite.position - self.Planet.position)
 
-        # Check if the altitide is withing 10 percent of the target
+        # Check if the altitide is within 10 percent of the target
         if (altitude < self.altitudeTarget * 1.1 and altitude > self.altitudeTarget * 0.9):
             rewardAmount += 2
 
