@@ -12,25 +12,16 @@ class dotAgent:
         self.velocity = np.array([velocity[0], velocity[1]])
         self.size = size
         self.colour = colour
+        self.previous_position = np.array([position[0], position[1]])
 
     # Method to run the agent
     def run(self, direction):
 
-        velocity = np.array([0, 0])
+        velocity = np.array(direction)
 
-        if (direction == 'stay'):
-            velocity = np.array([0, 0])
-        elif (direction == 'up'):
-            velocity = np.array([0, -1])
-        elif (direction == 'down'):
-            velocity = np.array([0, 1])
-        elif (direction == 'left'):
-            velocity = np.array([-1, 0])
-        elif (direction == 'right'):
-            velocity = np.array([1, 0])
+        # Set Previous Position
+        self.previous_position = self.position
 
-        # Apply acceleration
-        # self.velocity = self.velocity + acceleration
         self.position = self.position + velocity
 
     def render(self, screen, scale):
