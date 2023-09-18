@@ -16,8 +16,8 @@ class DQNAgent:
         self.action_size = action_size
         self.memory = deque(maxlen=50000)
         self.gamma = 0.95    # Reward decay coefficient γ
-        self.epsilon = 0.33  # exploration rate
-        self.epsilon_min = 0
+        self.epsilon = 1  # exploration rate
+        self.epsilon_min = 0.1
         self.epsilon_decay = 0.01
         self.learning_rate = 0.01
         self.Nreplace = 2000  # Update target network every Nreplace step
@@ -35,6 +35,7 @@ class DQNAgent:
         # TensorBoard
         self.loss_log = []  # To store loss values
         self.epsilon_log = []  # To store epsilon values
+        self.model_action_log = []  # To store action values
 
     def _build_model(self):
         # Neural Net for Deep-Q learning Model
@@ -58,6 +59,10 @@ class DQNAgent:
         if np.random.rand() <= self.epsilon:
             return random.randrange(self.action_size)
         act_values = self.model.predict(state, verbose=0)
+
+        # Log the non random action taken by the network
+        self.model_action_log.append(np.argmax(act_values[0]))
+
         return np.argmax(act_values[0])
 
     def actGreedy(self, state):
@@ -84,7 +89,7 @@ class DQNAgent:
         # This runs once per episode
         self.step += 1
 
-        if self.epsilon > self.epsilon_min and self.step % 100 == 0:
+        if self.epsilon > self.epsilon_min and self.step % 10 == 0:
             self.epsilon -= self.epsilon_decay
 
     def save_model(self, name):
@@ -95,3 +100,6 @@ class DQNAgent:
 
     def get_epsilon_log(self):
         return self.epsilon_log
+
+    def get_model_action_log(self):
+        return self.model_action_log

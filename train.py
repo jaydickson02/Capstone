@@ -38,8 +38,14 @@ writer = tf.summary.create_file_writer(log_dir)
 # Clear the terminal
 os.system("clear")
 
+# Step Counter
+steps = 0
+
+# Model Action Log Length tracker
+model_action_log_length_tracker = 0
+
 # Training loop
-pbar = tqdm(range(6272, 20000))
+pbar = tqdm(range(0, 20000))
 for e in pbar:
     state = env.reset()
     state = np.reshape(state, [1, state_size])
@@ -55,11 +61,23 @@ for e in pbar:
         state = next_state
         total_reward += reward
 
+        with writer.as_default():
+            tf.summary.scalar('Action', action, step=steps)
+
+        if (model_action_log_length_tracker != len(agent.get_model_action_log())):
+            with writer.as_default():
+                tf.summary.scalar('Non Random Actions',
+                                  agent.get_model_action_log()[-1], step=steps)
+
+            model_action_log_length_tracker = len(agent.get_model_action_log())
+
+        steps += 1
+
     if len(agent.memory) > batch_size:
         agent.replay(batch_size)
 
     # Update the target network every 4 episodes
-    if e % 2 == 0:
+    if e % 4 == 0:
         agent.update_target_model()
 
      # Log the reward, loss, and epsilon for TensorBoard
