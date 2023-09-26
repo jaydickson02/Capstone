@@ -14,10 +14,11 @@ class DQNAgent:
     def __init__(self, state_size, action_size, model=None):
         self.state_size = state_size
         self.action_size = action_size
-        self.memory = deque(maxlen=50000)
+        self.memory = deque(maxlen=100000)
         self.gamma = 0.95    # Reward decay coefficient γ
         self.epsilon = 1  # exploration rate
-        self.epsilon_min = 0.1
+        self.epsilon_min = 0.01
+        self.epsilonStepCount = 10 # Number of steps to decay epsilon
         self.epsilon_decay = 0.01
         self.learning_rate = 0.01
         self.Nreplace = 2000  # Update target network every Nreplace step
@@ -40,9 +41,9 @@ class DQNAgent:
     def _build_model(self):
         # Neural Net for Deep-Q learning Model
         model = Sequential()
-        model.add(Dense(256, input_dim=self.state_size, activation='relu'))
-        model.add(Dense(256, activation='relu'))
-        model.add(Dense(128, activation='relu'))
+        model.add(Dense(256, input_dim=self.state_size, activation='tanh'))
+        model.add(Dense(256, activation='tanh'))
+        model.add(Dense(128, activation='tanh'))
         model.add(Dense(self.action_size, activation='linear'))
         model.compile(loss='mse', optimizer=Adam(
             learning_rate=self.learning_rate))
@@ -89,7 +90,7 @@ class DQNAgent:
         # This runs once per episode
         self.step += 1
 
-        if self.epsilon > self.epsilon_min and self.step % 10 == 0:
+        if self.epsilon > self.epsilon_min and self.step % self.epsilonStepCount == 0:
             self.epsilon -= self.epsilon_decay
 
     def save_model(self, name):
