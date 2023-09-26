@@ -17,12 +17,12 @@ class dotAgent:
     # Method to run the agent
     def run(self, direction):
 
-        velocity = np.array(direction)
+        self.velocity = np.array(direction)
 
         # Set Previous Position
         self.previous_position = self.position
 
-        self.position = self.position + velocity
+        self.position = self.position + self.velocity
 
     def render(self, screen, scale):
 
