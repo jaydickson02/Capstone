@@ -5,15 +5,12 @@ from tqdm import tqdm
 import os
 from keras.callbacks import TensorBoard
 from keras.models import load_model
+from datetime import datetime
 
 from DotAgent import dotAgent
 from Environment import Environment
 from DQN import DQNAgent
 
-
-# Initialize the environment
-Width = 1000
-Height = 1000
 
 # Load a model
 # model = load_model('model.h5')
@@ -21,8 +18,8 @@ model = None
 
 
 # Replace with your dot agent implementation
-dotAgent = dotAgent([Width/2, (Height/2)], [0, 0], 3, [0, 0, 0])
-runtime = 1000
+
+runtime = 100
 renderEnv = False
 env = Environment(dotAgent, runtime, renderEnv)
 
@@ -31,8 +28,17 @@ action_size = env.action_space.n
 agent = DQNAgent(state_size, action_size, model)
 batch_size = 32
 
-# Create a TensorBoard writer
-log_dir = "logs/{}".format(time())
+
+# Get the current date and time
+now = datetime.now()
+
+# Format the date and time as a string
+formatted_time = now.strftime("%Y-%m-%d_%H-%M-%S")
+
+# Create the directory name
+log_dir = "logs/{}".format(formatted_time)
+
+# Create the TensorBoard writer
 writer = tf.summary.create_file_writer(log_dir)
 
 # Clear the terminal
@@ -54,7 +60,7 @@ for e in pbar:
 
     while not done:
         action = agent.act(state)
-        next_state, reward, done = env.next(action, state)
+        next_state, reward, done, finishCondition = env.next(action)
         next_state = np.reshape(next_state, [1, state_size])
 
         agent.remember(state, action, reward, next_state, done)
@@ -76,22 +82,22 @@ for e in pbar:
     if len(agent.memory) > batch_size:
         agent.replay(batch_size)
 
-    # Update the target network every 4 episodes
-    if e % 4 == 0:
+    # Update the target network every 20 episodes
+    if e % 20 == 0:
         agent.update_target_model()
 
-     # Log the reward, loss, and epsilon for TensorBoard
-    if e % 4 == 0:
-        with writer.as_default():
-            tf.summary.scalar('Reward', total_reward, step=e)
-            tf.summary.scalar('Loss', agent.get_loss_log()
-                              [-1], step=e)  # Log the last loss
-            tf.summary.scalar('Epsilon', agent.get_epsilon_log()
-                              [-1], step=e)  # Log the last epsilon
+    # Log the reward, loss, and epsilon for TensorBoard
+    with writer.as_default():
+        tf.summary.scalar('Reward', total_reward, step=e)
+        tf.summary.scalar('Loss', agent.get_loss_log()[-1], step=e)  # Log the last loss
+        tf.summary.scalar('Epsilon', agent.get_epsilon_log()[-1], step=e)  # Log the last epsilon
+        tf.summary.text("Finish Condition", finishCondition, step=e) # Log the finish condition
+
 
     # Save the model every 10 episodes
     if e % 10 == 0:
         agent.save_model("model.h5")
+
 
     pbar.set_postfix({"Total Reward": total_reward, "loss": agent.get_loss_log(
     )[-1], "Epsilon": agent.get_epsilon_log()[-1]})
