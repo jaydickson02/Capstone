@@ -1,5 +1,5 @@
-import utils
 import numpy as np
+import utils
 from gym import spaces
 import math
 import pygame
@@ -10,22 +10,34 @@ class Environment:
     # Constructor
     def __init__(self, dotAgent, runtime, renderEnv=False):
 
-        self.dotAgent = dotAgent
+        # Environment Variables
+        self.safe_distance = 5
+        self.threat_distance = 10
+        self.size = 300
+        self.gamma = 0.95
+        self.target_reached_range = 5
 
+
+        # Dot Agent initialisation
+        self.dotAgent = dotAgent([self.size/2, (self.size/2)], [0, 0], 3, [0, 0, 0])
+
+        # Render Environment
         self.renderEnv = renderEnv
+
+        # Max step value
         self.runtime = runtime
+
+        # Initialise reward value
         self.rewardValue = 0
 
-        # Dot Agent
-        self.targetArea = np.array([-50, -50]) + np.array([500, 500])
-        self.obstacle = np.array([50, 50]) + np.array([500, 500])
+        # Initialise target area and obstacle
+        self.targetArea = np.array([-50, -50]) + np.array([self.size/2, self.size/2])
+        self.obstacle = np.array([50, 50]) + np.array([self.size/2, self.size/2])
 
         # Space Variables
         self.action_space = spaces.Discrete(9)
-        self.observation_space = spaces.Box(low=np.array([-2, -2, -1000, -1000, -1000, -1000]),
-                                            high=np.array(
-                                                [2, 2, 1000, 1000, 1000, 1000]),
-                                            dtype=np.float32)
+        self.observation_space = spaces.Box(low=np.array([-2, -2, -self.size, -self.size, -self.size, -self.size]),
+        high=np.array([2, 2, self.size, self.size, self.size, self.size]), dtype=np.float32)
 
         # Step Tracking
         self.step = 0
@@ -33,39 +45,45 @@ class Environment:
         # Render
         if renderEnv:
             pygame.init()
-            self.canvas = pygame.display.set_mode((1000, 1000))
+            self.canvas = pygame.display.set_mode((self.size, self.size))
             self.clock = pygame.time.Clock()
             pygame.display.set_caption("Env Simulation")
 
-    def next(self, action, previousState):
+    def next(self, action):
         actionValue = [[0, 0], [-2, 0], [-1, 0], [1, 0], [2, 0], [0, -2],
                        [0, -1], [0, 1], [0, 2]][action]
 
+        # Propogate the agent
         self.dotAgent.run(actionValue)
 
+        # Calculate state values
         relative_position_target = self.dotAgent.position - self.targetArea
         relative_position_obstacle = self.dotAgent.position - self.obstacle
         relative_velocity_target = self.dotAgent.velocity  # Assuming target is stationary
 
+        # Define the state
         state = [relative_velocity_target[0], relative_velocity_target[1], relative_position_target[0],
                  relative_position_target[1], relative_position_obstacle[0], relative_position_obstacle[1]]
 
-        rewardAmount, done = self.reward()
+        # Calculate the reward and check if done
+        rewardAmount, done, finishCondition = self.reward()
 
         # Update self.rewardValue
         self.rewardValue += rewardAmount
 
+        # Update the step counter
         self.step += 1
 
         if (self.renderEnv):
             self.render(done)
 
-        return (state, rewardAmount, done)
+        return (state, rewardAmount, done, finishCondition)
 
     def reward(self):
 
         rewardAmount = 0
         done = False
+        finishCondition = "No Condition"
 
         # Define the parameters for the reward function
         def rho(s): return utils.magnitude(
@@ -74,30 +92,45 @@ class Environment:
         # Relative position of the agent to the obstacle
         def rho_O(s): return utils.magnitude(s - self.obstacle)
 
-        d_safe = 5  # Example safe distance
-        gamma = 0.95  # Example discount factor
+        d_safe = self.safe_distance  # safe distance
+        gamma = self.gamma  # discount factor
 
         # Calculate the reward using the paper's reward function
         s_prime = self.dotAgent.position
         s = self.dotAgent.previous_position  # Store the previous position
 
         if rho_O(s_prime) > 2 * d_safe:
-            rewardAmount = -gamma * rho(s_prime) + rho(s)
-        elif rho_O(s_prime) <= 2 * d_safe:
-            rewardAmount = -rho_O(s) + 2 * (1 - gamma) * d_safe
-        else:
-            rewardAmount = -gamma * rho(s_prime) + \
-                rho(s) + gamma * rho_O(s_prime)
+            rewardAmount += -gamma * rho(s_prime) + rho(s)
 
-        # Calculate if the satellite has escaped
-        if (utils.magnitude(self.dotAgent.position - np.array([500, 500])) > 500):
+        if rho_O(s_prime) <= 2 * d_safe:
+            rewardAmount += -rho_O(s) + 2 * (1 - gamma) * d_safe
+        
+        rewardAmount += -gamma * rho(s_prime) + rho(s) + gamma * rho_O(s_prime)
+
+        # Calculate if the satellite collides with the obstacle
+        if (utils.magnitude(self.dotAgent.position - self.obstacle) < self.threat_distance): 
+            rewardAmount += -2  # Penalty for collision
             done = True
+            finishCondition = "Collision"
+
+        # Calculate if the satellite has gone out of range
+        if any(abs(self.dotAgent.position - (self.size/2)) > (self.size/2)): 
+            rewardAmount += -2  # Penalty for going out of range
+            done = True
+            finishCondition = "Out of Range"
+
+        # Calculate if the satellite has reached the target area
+        if (utils.magnitude(self.dotAgent.position - self.targetArea) < self.target_reached_range): 
+            rewardAmount += 2  # Reward for reaching the target
+            done = True
+            finishCondition = "Reached Target"
 
         if (self.step >= self.runtime):
             done = True
+            finishCondition = "Runtime Exceeded"
 
         # Return the reward and done values
-        return (rewardAmount, done)
+        return (rewardAmount, done, finishCondition)
 
     # Render
     def render(self, done):
@@ -126,24 +159,24 @@ class Environment:
             text = font.render("Target Distance: " + str(round(utils.magnitude(
                 self.targetArea - self.dotAgent.position), 2)), True, (0, 0, 0))
             textRect = text.get_rect()
-            textRect.center = (500, 50)
+            textRect.center = (150, 50)
             self.canvas.blit(text, textRect)
 
             text = font.render(
                 "Current Distance: " + str(round(DotDistanceTotal, 2)), True, (0, 0, 0))
             textRect = text.get_rect()
-            textRect.center = (500, 70)
+            textRect.center = (150, 70)
             self.canvas.blit(text, textRect)
 
             text = font.render(
                 "Reward: " + str(round(self.rewardValue, 2)), True, (0, 0, 0))
             textRect = text.get_rect()
-            textRect.center = (500, 90)
+            textRect.center = (150, 90)
             self.canvas.blit(text, textRect)
 
             text = font.render("Step: " + str(self.step), True, (0, 0, 0))
             textRect = text.get_rect()
-            textRect.center = (500, 110)
+            textRect.center = (150, 110)
             self.canvas.blit(text, textRect)
 
             # Update the display
@@ -152,7 +185,7 @@ class Environment:
     def reset(self):
 
         # Define a vector at the center of the screen
-        center = np.array([500, 500])
+        center = np.array([150, 150])
 
         # Randomise the target areas
         position1 = utils.normalise(
@@ -161,8 +194,8 @@ class Environment:
             np.array([np.random.uniform(-1, 1), np.random.uniform(-1, 1)]))
 
         # Randomly scaled to be somewhere on the screen
-        position1 = position1 * (np.random.uniform(0, 490))
-        position2 = position2 * (np.random.uniform(0, 490))
+        position1 = position1 * (np.random.uniform(0, self.size/2))
+        position2 = position2 * (np.random.uniform(0, self.size/2))
 
         # Add the positions to make the center of the screen the origin
         position1 = position1 + center
@@ -181,7 +214,7 @@ class Environment:
             np.array([np.random.uniform(-1, 1), np.random.uniform(-1, 1)]))
 
         # Randomly scaled to be somewhere on the screen
-        position = position * (np.random.uniform(0, 490))
+        position = position * (np.random.uniform(0, self.size/2))
 
         # Add the positions to make the center of the screen the origin
         position = position + center
